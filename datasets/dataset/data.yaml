@@ -1,0 +1,11 @@
+train: E:/00code/3.06-code/class_Detection_end/datasets/dataset/images/train
+val: E:/00code/3.06-code/class_Detection_end/datasets/dataset/images/val
+test: E:/00code/3.06-code/class_Detection_end/datasets/dataset/images/test
+
+
+##/datasets/dataset/images/test
+# number of classes
+nc: 6
+
+# class names
+names:  [ 'hand-raising', 'reading', 'writing','using phone', 'bowing the head', 'leaning over the table']
