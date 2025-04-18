@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import time
-from PyQt5.QtWidgets import QApplication , QMainWindow, QFileDialog,QMessageBox,QWidget,QHeaderView,QTableWidgetItem, QAbstractItemView
+from PyQt5.QtWidgets import QApplication , QMainWindow, QFileDialog,QMessageBox,QWidget,QHeaderView,QTableWidgetItem, QAbstractItemView,QAction
 import sys
 import os
 from PIL import ImageFont
@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self.ui.CapBtn.clicked.connect(self.camera_show)
         self.ui.SaveBtn.clicked.connect(self.save_detect_video)
         self.ui.ExitBtn.clicked.connect(QCoreApplication.quit)
-        self.ui.FilesBtn.clicked.connect(self.detact_batch_imgs)
+        self.ui.FilesBtn.clicked.connect(self.detact_batch_imgs)#处理文件夹中的图片
 
     def initMain(self):
         self.show_width = 770
@@ -85,7 +85,38 @@ class MainWindow(QMainWindow):
 
         # 设置主页背景图片border-image: url(:/icons/ui_imgs/icons/camera.png)
         # self.setStyleSheet("#MainWindow{background-image:url(:/bgs/ui_imgs/bg3.jpg)}")
+        self.setupShortcuts()  # 添加这行来初始化快捷键
+    def setupShortcuts(self):
+        """设置程序快捷键"""
+        # 打开图片 - Ctrl+O
+        open_img = QAction(self)
+        open_img.setShortcut("Ctrl+O")
+        open_img.triggered.connect(self.open_img)
+        self.addAction(open_img)
 
+        # 打开视频 - Ctrl+V
+        open_video = QAction(self)
+        open_video.setShortcut("Ctrl+V")
+        open_video.triggered.connect(self.vedio_show)
+        self.addAction(open_video)
+
+        # 打开摄像头 - Ctrl+C
+        open_cam = QAction(self)
+        open_cam.setShortcut("Ctrl+C")
+        open_cam.triggered.connect(self.camera_show)
+        self.addAction(open_cam)
+
+        # 保存结果 - Ctrl+S
+        save = QAction(self)
+        save.setShortcut("Ctrl+S")
+        save.triggered.connect(self.save_detect_video)
+        self.addAction(save)
+
+        # 退出程序 - Ctrl+Q
+        quit = QAction(self)
+        quit.setShortcut("Ctrl+Q")
+        quit.triggered.connect(QCoreApplication.quit)
+        self.addAction(quit)
     def open_img(self):
         if self.cap:
             # 打开图片前关闭摄像头
@@ -108,23 +139,55 @@ class MainWindow(QMainWindow):
 
         # 目标检测
         t1 = time.time()
+        # 使用YOLO模型对输入的图片路径(self.org_path)进行目标检测
+        # [0]表示获取检测结果中的第一个(通常也是唯一一个)检测结果
+        # 检测结果会被存储在self.results变量中，包含检测到的目标框、类别、置信度等信息
+        # Results对象主要属性：
+        # self.results.boxes  # 包含检测框信息
+        # self.results.boxes.xyxy  # 检测框坐标(x1,y1,x2,y2)格式的tensor
+        # self.results.boxes.conf  # 检测置信度(0-1之间的值)
+        # self.results.boxes.cls  # 检测类别ID(int)
+        # self.results.names  # 类别名称映射字典
+        # self.results.orig_img  # 原始图像(numpy数组)
+
+        # # Results对象常用方法：
+        # self.results.plot()  # 绘制检测结果并返回带标注的图像
+        # self.results.show()  # 显示检测结果图像
+        # self.results.save()  # 保存检测结果图像
         self.results = self.model(self.org_path)[0]
         t2 = time.time()
         take_time_str = '{:.3f} s'.format(t2 - t1)
         self.ui.time_lb.setText(take_time_str)
 
-        location_list = self.results.boxes.xyxy.tolist()
-        self.location_list = [list(map(int, e)) for e in location_list]
-        cls_list = self.results.boxes.cls.tolist()
-        self.cls_list = [int(i) for i in cls_list]
-        self.conf_list = self.results.boxes.conf.tolist()
+        # 获取检测框坐标(x1,y1,x2,y2格式)，并转换为整数列表
+        location_list = self.results.boxes.xyxy.tolist()  
+        # 将坐标值转换为整数类型
+        self.location_list = [list(map(int, e)) for e in location_list]  
+        
+        # 获取检测类别ID列表 
+        cls_list = self.results.boxes.cls.tolist()  
+        # 将类别ID转换为整数类型
+        self.cls_list = [int(i) for i in cls_list]  
+        
+        # 获取检测置信度列表(0-1之间的值)
+        self.conf_list = self.results.boxes.conf.tolist()  
+        # 将置信度转换为百分比字符串格式(保留2位小数)
         self.conf_list = ['%.2f %%' % (each*100) for each in self.conf_list]
 
-        total_nums = len(location_list)
-        cls_percents = []
-        for i in range(6):
-            res = self.cls_list.count(i) / total_nums
-            cls_percents.append(res)
+        # 计算检测到的目标总数
+        total_nums = len(location_list)  
+        
+        # 初始化各类别占比列表
+        cls_percents = []  
+        
+        # 遍历6个类别(假设有6个检测类别)
+        for i in range(6):  
+            # 计算当前类别在总检测目标中的占比
+            res = self.cls_list.count(i) / total_nums  
+            # 将当前类别占比添加到列表中
+            cls_percents.append(res)  
+        
+        # 调用方法更新界面上的百分比显示
         self.set_percent(cls_percents)
 
         # now_img = self.cv_img.copy()
@@ -216,11 +279,20 @@ class MainWindow(QMainWindow):
                 self.conf_list = self.results.boxes.conf.tolist()
                 self.conf_list = ['%.2f %%' % (each * 100) for each in self.conf_list]
 
-                total_nums = len(location_list)
-                cls_percents = []
-                for i in range(6):
-                    res = self.cls_list.count(i) / total_nums
-                    cls_percents.append(res)
+                # 计算检测到的目标总数
+                total_nums = len(location_list)  
+                
+                # 初始化各类别占比列表
+                cls_percents = []  
+                
+                # 遍历6个类别(假设有6个检测类别)
+                for i in range(6):  
+                    # 计算当前类别在总检测目标中的占比
+                    res = self.cls_list.count(i) / total_nums  
+                    # 将当前类别占比添加到列表中
+                    cls_percents.append(res)  
+                
+                # 调用方法更新界面上的百分比显示
                 self.set_percent(cls_percents)
 
                 now_img = self.results.plot()
@@ -319,7 +391,7 @@ class MainWindow(QMainWindow):
         self.tabel_info_show(self.location_list, self.cls_list, self.conf_list, path=self.org_path)
         return now_img
 
-    def combox_change(self):
+    def combox_change(self):#下拉框改变
         com_text = self.ui.comboBox.currentText()
         if com_text == '全部':
             cur_box = self.location_list
@@ -346,7 +418,7 @@ class MainWindow(QMainWindow):
         self.ui.label_show.setAlignment(Qt.AlignCenter)
 
 
-    def get_video_path(self):
+    def get_video_path(self):#获取视频路径
         file_path, _ = QFileDialog.getOpenFileName(None, '打开视频', './', "Image files (*.avi *.mp4 *.jepg *.png)")
         if not file_path:
             return None
@@ -354,19 +426,22 @@ class MainWindow(QMainWindow):
         self.ui.VideolineEdit.setText(file_path)
         return file_path
 
-    def video_start(self):
-        # 删除表格所有行
-        self.ui.tableWidget.setRowCount(0)
-        self.ui.tableWidget.clearContents()
+    def video_start(self):#摄像头开启后，调用此方法
 
-        # 清空下拉框
+        # 清空表格内容
+        self.ui.tableWidget.setRowCount(0)  # 设置行数为0
+        self.ui.tableWidget.clearContents()  # 清除表格内容
+
+        # 清空下拉选择框
         self.ui.comboBox.clear()
 
-        # 定时器开启，每隔一段时间，读取一帧
+        # 启动定时器，设置1毫秒间隔
         self.timer_camera.start(1)
+        
+        # 连接定时器超时信号到帧处理函数
         self.timer_camera.timeout.connect(self.open_frame)
 
-    def tabel_info_show(self, locations, clses, confs, path=None):
+    def tabel_info_show(self, locations, clses, confs, path=None):#表格显示
         path = path
         for location, cls, conf in zip(locations, clses, confs):
             row_count = self.ui.tableWidget.rowCount()  # 返回当前行数(尾部)
@@ -397,68 +472,83 @@ class MainWindow(QMainWindow):
         self.timer_camera.stop()
         # self.timer_info.stop()
 
-    def open_frame(self):
+    def open_frame(self):#处理视频帧，与处理图片是类似的
+        """
+        处理视频帧并进行目标检测和结果显示
+        主要功能:
+        1. 从摄像头或视频文件读取帧
+        2. 使用YOLO模型进行目标检测
+        3. 计算检测时间和各类别占比
+        4. 在界面上显示检测结果和统计信息
+        5. 更新下拉选择框和表格信息
+        """
+        # 从视频流中读取一帧
         ret, now_img = self.cap.read()
         if ret:
-            # 目标检测
+            # 记录开始检测时间
             t1 = time.time()
+            # 使用YOLO模型进行目标检测
             results = self.model(now_img)[0]
+            # 记录检测结束时间
             t2 = time.time()
+            # 计算并显示检测耗时
             take_time_str = '{:.3f} s'.format(t2 - t1)
             self.ui.time_lb.setText(take_time_str)
 
+            # 获取检测框坐标并转换为整数列表
             location_list = results.boxes.xyxy.tolist()
             self.location_list = [list(map(int, e)) for e in location_list]
+            
+            # 获取检测类别ID列表
             cls_list = results.boxes.cls.tolist()
             self.cls_list = [int(i) for i in cls_list]
+            
+            # 获取检测置信度并转换为百分比格式
             self.conf_list = results.boxes.conf.tolist()
             self.conf_list = ['%.2f %%' % (each * 100) for each in self.conf_list]
 
+            # 计算各类别占比
             total_nums = len(location_list)
             cls_percents = []
-            for i in range(6):
-                if total_nums!= 0 :  #识别到的目标数量
+            for i in range(6):  # 假设有6个检测类别
+                if total_nums != 0:  # 避免除以0
                     res = self.cls_list.count(i) / total_nums
-                else :
-                    res=0
-                #res = self.cls_list.count(i) / total_nums
+                else:
+                    res = 0
                 cls_percents.append(res)
             self.set_percent(cls_percents)
 
+            # 绘制检测结果
             now_img = results.plot()
 
-            # 获取缩放后的图片尺寸
+            # 调整图片尺寸并显示
             self.img_width, self.img_height = self.get_resize_size(now_img)
             resize_cvimg = cv2.resize(now_img, (self.img_width, self.img_height))
             pix_img = tools.cvimg_to_qpiximg(resize_cvimg)
             self.ui.label_show.setPixmap(pix_img)
             self.ui.label_show.setAlignment(Qt.AlignCenter)
 
-            # 目标数目
+            # 显示检测目标数量
             target_nums = len(self.cls_list)
             self.ui.label_nums.setText(str(target_nums))
 
-            # 设置目标选择下拉框
+            # 更新下拉选择框内容
             choose_list = ['全部']
             target_names = [Config.names[id] + '_' + str(index) for index, id in enumerate(self.cls_list)]
-            # object_list = sorted(set(self.cls_list))
-            # for each in object_list:
-            #     choose_list.append(Config.CH_names[each])
             choose_list = choose_list + target_names
-
             self.ui.comboBox.clear()
             self.ui.comboBox.addItems(choose_list)
 
+            # 显示第一个检测目标的详细信息
             if target_nums >= 1:
                 self.ui.type_lb.setText(Config.CH_names[self.cls_list[0]])
                 self.ui.label_conf.setText(str(self.conf_list[0]))
-                #   默认显示第一个目标框坐标
-                #   设置坐标位置值
                 self.ui.label_xmin.setText(str(self.location_list[0][0]))
                 self.ui.label_ymin.setText(str(self.location_list[0][1]))
                 self.ui.label_xmax.setText(str(self.location_list[0][2]))
                 self.ui.label_ymax.setText(str(self.location_list[0][3]))
             else:
+                # 没有检测到目标时清空显示
                 self.ui.type_lb.setText('')
                 self.ui.label_conf.setText('')
                 self.ui.label_xmin.setText('')
@@ -466,13 +556,11 @@ class MainWindow(QMainWindow):
                 self.ui.label_xmax.setText('')
                 self.ui.label_ymax.setText('')
 
-
-            # 删除表格所有行
-            # self.ui.tableWidget.setRowCount(0)
-            # self.ui.tableWidget.clearContents()
+            # 更新表格信息
             self.tabel_info_show(self.location_list, self.cls_list, self.conf_list, path=self.org_path)
 
         else:
+            # 视频读取结束时释放资源
             self.cap.release()
             self.timer_camera.stop()
 
@@ -488,22 +576,29 @@ class MainWindow(QMainWindow):
         self.video_start()
         self.ui.comboBox.setDisabled(True)
 
-    def camera_show(self):
+    def camera_show(self):#摄像头
+        # 切换摄像头开启/关闭状态
         self.is_camera_open = not self.is_camera_open
+        
         if self.is_camera_open:
-            self.ui.CaplineEdit.setText('摄像头开启')
-            self.cap = cv2.VideoCapture(0)
-            self.video_start()
-            self.ui.comboBox.setDisabled(True)
+            # 摄像头开启状态
+            self.ui.CaplineEdit.setText('摄像头开启')  # 更新界面状态显示
+            self.cap = cv2.VideoCapture(0)  # 打开默认摄像头(索引0)
+            self.video_start()  # 开始视频流处理
+            self.ui.comboBox.setDisabled(True)  # 禁用下拉框
         else:
-            self.ui.CaplineEdit.setText('摄像头未开启')
-            self.ui.label_show.setText('')
+            # 摄像头关闭状态
+            self.ui.CaplineEdit.setText('摄像头未开启')  # 更新界面状态显示
+            self.ui.label_show.setText('')  # 清空显示区域
+            
+            # 释放摄像头资源
             if self.cap:
-                self.cap.release()
-                cv2.destroyAllWindows()
-            self.ui.label_show.clear()
+                self.cap.release()  # 释放摄像头
+                cv2.destroyAllWindows()  # 关闭所有OpenCV窗口
+                
+            self.ui.label_show.clear()  # 清除显示区域内容
 
-    def get_resize_size(self, img):
+    def get_resize_size(self, img):#获取缩放后的图片尺寸
         _img = img.copy()
         img_height, img_width , depth= _img.shape
         ratio = img_width / img_height
@@ -588,7 +683,7 @@ class MainWindow(QMainWindow):
             labels[i].setText(label_values[i])
 
 
-class btn2Thread(QThread):
+class btn2Thread(QThread):#
     """
     进行检测后的视频保存
     """
